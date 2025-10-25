@@ -224,7 +224,7 @@ fn main() -> Result<()> {
     let mut output_file = std::fs::File::create(&args.output)?;
 
     for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
-        writeln!(output_file, "@assembled_sequence_{}", i + 1)?;
+        writeln!(output_file, "@assembled_sequence_{} len={}", i + 1, assembled_sequence.len())?;
 
         writeln!(
             output_file,
