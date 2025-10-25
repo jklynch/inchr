@@ -35,7 +35,6 @@ pub struct KmerInfo {
     pub entropy: f64,
 }
 
-
 fn find_and_count_kmers(
     fastq_path: &str,
     kmer_length: usize,
@@ -52,7 +51,10 @@ fn find_and_count_kmers(
 
     for seq in seqs {
         for kmer in seq.windows(kmer_length) {
-            let entry = kmer_counts.entry(kmer.to_vec()).or_insert(KmerInfo { count: 0, entropy: 0.0 });
+            let entry = kmer_counts.entry(kmer.to_vec()).or_insert(KmerInfo {
+                count: 0,
+                entropy: 0.0,
+            });
             entry.count += 1;
 
             // Calculate entropy for the k-mer
@@ -76,7 +78,10 @@ fn find_and_count_kmers(
     Ok((kmer_counts, elapsed_time))
 }
 
-fn inchworm_assemble(kmer_table: &mut HashMap<Vec<u8>, KmerInfo>, seed_sequence: Vec<u8>) -> Vec<u8> {
+fn inchworm_assemble(
+    kmer_table: &mut HashMap<Vec<u8>, KmerInfo>,
+    seed_sequence: Vec<u8>,
+) -> Vec<u8> {
     if kmer_table.is_empty() {
         return Vec::new();
     }
@@ -136,7 +141,10 @@ fn inchworm_assemble(kmer_table: &mut HashMap<Vec<u8>, KmerInfo>, seed_sequence:
     assembled_sequence
 }
 
-fn inchworm_assemble_all_sequences(mut kmer_table: HashMap<Vec<u8>, KmerInfo>, max_sequences: Option<usize>) -> Vec<Vec<u8>> {
+fn inchworm_assemble_all_sequences(
+    mut kmer_table: HashMap<Vec<u8>, KmerInfo>,
+    max_sequences: Option<usize>,
+) -> Vec<Vec<u8>> {
     let mut all_assembled_sequences = Vec::new();
     let mut assembled_count = 0;
 
@@ -147,20 +155,21 @@ fn inchworm_assemble_all_sequences(mut kmer_table: HashMap<Vec<u8>, KmerInfo>, m
                 break;
             }
         }
-        println!("DEBUG: kmer_table size at start of loop: {}", kmer_table.len());
+        println!(
+            "DEBUG: kmer_table size at start of loop: {}",
+            kmer_table.len()
+        );
         // Select the k-mer with the highest count to be the seed
         let (seed, _) = match kmer_table
             .iter()
             .filter(|&(_, kmer_info)| kmer_info.entropy >= 1.0)
             .max_by_key(|&(_, kmer_info)| kmer_info.count)
         {
-            Some((kmer, info)) => {
-                (kmer.clone(), info.clone())
-            },
+            Some((kmer, info)) => (kmer.clone(), info.clone()),
             None => {
                 println!("DEBUG: No more k-mers to assemble with sufficient entropy.");
                 break; // No more k-mers to assemble with sufficient entropy
-            },
+            }
         };
 
         let assembled_sequence = inchworm_assemble(&mut kmer_table, seed);
@@ -169,7 +178,10 @@ fn inchworm_assemble_all_sequences(mut kmer_table: HashMap<Vec<u8>, KmerInfo>, m
             println!("DEBUG: inchworm_assemble returned an empty sequence.");
             break;
         }
-        println!("DEBUG: Assembled sequence added: {}", String::from_utf8_lossy(&assembled_sequence));
+        println!(
+            "DEBUG: Assembled sequence added: {}",
+            String::from_utf8_lossy(&assembled_sequence)
+        );
         all_assembled_sequences.push(assembled_sequence);
         assembled_count += 1;
     }
@@ -190,38 +202,40 @@ fn main() -> Result<()> {
     println!("Total k-mers: {}", total_kmers);
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
-        let all_assembled_sequences = inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
+    let mut all_assembled_sequences =
+        inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
 
-    
+    all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
 
-        println!("\nAssembled sequences:");
+    println!("\nAssembled sequences:");
 
-        let mut output_file = std::fs::File::create(&args.output)?;
+    let mut output_file = std::fs::File::create(&args.output)?;
 
-        for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
+    for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
+        writeln!(output_file, "@assembled_sequence_{}", i + 1)?;
 
-            println!("Sequence {}:
+        writeln!(
+            output_file,
+            "{}",
+            String::from_utf8_lossy(assembled_sequence)
+        )?;
 
-    {}", i + 1, String::from_utf8_lossy(assembled_sequence));
+        writeln!(output_file, "+")?;
 
-    
-
-            writeln!(output_file, "@assembled_sequence_{}", i + 1)?;
-
-            writeln!(output_file, "{}", String::from_utf8_lossy(assembled_sequence))?;
-
-            writeln!(output_file, "+")?;
-
-            writeln!(output_file, "{}", "F".repeat(assembled_sequence.len()))?;
-
-        }
+        writeln!(output_file, "{}", "F".repeat(assembled_sequence.len()))?;
+    }
 
     let mut sorted_kmers: Vec<_> = kmer_counts.into_iter().collect();
     sorted_kmers.sort_by(|a, b| b.1.count.cmp(&a.1.count));
 
     println!("\nTop {} k-mers:", args.top);
     for (kmer, kmer_info) in sorted_kmers.iter().take(args.top) {
-        println!("{}\t{}\t{:.2}", String::from_utf8_lossy(kmer), kmer_info.count, kmer_info.entropy);
+        println!(
+            "{}\t{}\t{:.2}",
+            String::from_utf8_lossy(kmer),
+            kmer_info.count,
+            kmer_info.entropy
+        );
     }
 
     Ok(())
@@ -230,9 +244,9 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashMap;
     use std::io::Write;
     use tempfile::NamedTempFile;
-    use std::collections::HashMap;
 
     #[test]
     fn test_find_and_count_kmers() {
@@ -242,14 +256,37 @@ mod tests {
         writeln!(tmpfile, "+").unwrap();
         writeln!(tmpfile, "FFFFFFFF").unwrap();
 
-        let (kmer_counts, _) =
-            find_and_count_kmers(tmpfile.path().to_str().unwrap(), 4).unwrap();
+        let (kmer_counts, _) = find_and_count_kmers(tmpfile.path().to_str().unwrap(), 4).unwrap();
 
         let mut expected_counts = HashMap::new();
-        expected_counts.insert(b"ACGT".to_vec(), KmerInfo { count: 2, entropy: 2.0 });
-        expected_counts.insert(b"CGTA".to_vec(), KmerInfo { count: 1, entropy: 2.0 });
-        expected_counts.insert(b"GTAC".to_vec(), KmerInfo { count: 1, entropy: 2.0 });
-        expected_counts.insert(b"TACG".to_vec(), KmerInfo { count: 1, entropy: 2.0 });
+        expected_counts.insert(
+            b"ACGT".to_vec(),
+            KmerInfo {
+                count: 2,
+                entropy: 2.0,
+            },
+        );
+        expected_counts.insert(
+            b"CGTA".to_vec(),
+            KmerInfo {
+                count: 1,
+                entropy: 2.0,
+            },
+        );
+        expected_counts.insert(
+            b"GTAC".to_vec(),
+            KmerInfo {
+                count: 1,
+                entropy: 2.0,
+            },
+        );
+        expected_counts.insert(
+            b"TACG".to_vec(),
+            KmerInfo {
+                count: 1,
+                entropy: 2.0,
+            },
+        );
 
         assert_eq!(kmer_counts, expected_counts);
     }
@@ -257,10 +294,34 @@ mod tests {
     #[test]
     fn test_inchworm_assemble() {
         let mut kmer_counts = HashMap::new();
-        kmer_counts.insert(b"ACGT".to_vec(), KmerInfo { count: 3, entropy: 0.0 });
-        kmer_counts.insert(b"CGTA".to_vec(), KmerInfo { count: 2, entropy: 0.0 });
-        kmer_counts.insert(b"GTAC".to_vec(), KmerInfo { count: 1, entropy: 0.0 });
-        kmer_counts.insert(b"TACG".to_vec(), KmerInfo { count: 4, entropy: 0.0 });
+        kmer_counts.insert(
+            b"ACGT".to_vec(),
+            KmerInfo {
+                count: 3,
+                entropy: 0.0,
+            },
+        );
+        kmer_counts.insert(
+            b"CGTA".to_vec(),
+            KmerInfo {
+                count: 2,
+                entropy: 0.0,
+            },
+        );
+        kmer_counts.insert(
+            b"GTAC".to_vec(),
+            KmerInfo {
+                count: 1,
+                entropy: 0.0,
+            },
+        );
+        kmer_counts.insert(
+            b"TACG".to_vec(),
+            KmerInfo {
+                count: 4,
+                entropy: 0.0,
+            },
+        );
         let seed = b"TACG".to_vec();
         let assembled_sequence = inchworm_assemble(&mut kmer_counts, seed);
         assert_eq!(assembled_sequence, b"TACGTAC".to_vec());
@@ -269,12 +330,48 @@ mod tests {
     #[test]
     fn test_inchworm_assemble_all_sequences() {
         let mut kmer_counts = HashMap::new();
-        kmer_counts.insert(b"ACGT".to_vec(), KmerInfo { count: 3, entropy: 2.0 });
-        kmer_counts.insert(b"CGTA".to_vec(), KmerInfo { count: 2, entropy: 2.0 });
-        kmer_counts.insert(b"GTAC".to_vec(), KmerInfo { count: 1, entropy: 2.0 });
-        kmer_counts.insert(b"TACG".to_vec(), KmerInfo { count: 4, entropy: 2.0 });
-        kmer_counts.insert(b"GGGG".to_vec(), KmerInfo { count: 5, entropy: 0.0 });
-        kmer_counts.insert(b"GGGT".to_vec(), KmerInfo { count: 5, entropy: 0.0 });
+        kmer_counts.insert(
+            b"ACGT".to_vec(),
+            KmerInfo {
+                count: 3,
+                entropy: 2.0,
+            },
+        );
+        kmer_counts.insert(
+            b"CGTA".to_vec(),
+            KmerInfo {
+                count: 2,
+                entropy: 2.0,
+            },
+        );
+        kmer_counts.insert(
+            b"GTAC".to_vec(),
+            KmerInfo {
+                count: 1,
+                entropy: 2.0,
+            },
+        );
+        kmer_counts.insert(
+            b"TACG".to_vec(),
+            KmerInfo {
+                count: 4,
+                entropy: 2.0,
+            },
+        );
+        kmer_counts.insert(
+            b"GGGG".to_vec(),
+            KmerInfo {
+                count: 5,
+                entropy: 0.0,
+            },
+        );
+        kmer_counts.insert(
+            b"GGGT".to_vec(),
+            KmerInfo {
+                count: 5,
+                entropy: 0.0,
+            },
+        );
 
         let assembled_sequences = inchworm_assemble_all_sequences(kmer_counts, None);
         assert_eq!(assembled_sequences.len(), 1);
