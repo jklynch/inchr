@@ -195,7 +195,11 @@ fn main() -> Result<()> {
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
     let mut sorted_kmers: Vec<_> = kmer_table.clone().into_iter().collect();
-    sorted_kmers.sort_by(|a, b| b.1.count.cmp(&a.1.count));
+    sorted_kmers.sort_by(|a, b| {
+        b.1.count.cmp(&a.1.count).then_with(|| {
+            b.1.entropy.partial_cmp(&a.1.entropy).unwrap_or(std::cmp::Ordering::Equal)
+        })
+    });
 
     println!("\nTop {} k-mers:", args.top);
     for (kmer, kmer_info) in sorted_kmers.iter().take(args.top) {
