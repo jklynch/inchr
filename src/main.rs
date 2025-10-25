@@ -202,12 +202,15 @@ fn main() -> Result<()> {
     println!("Total k-mers: {}", total_kmers);
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
+    let assembly_start_time = Instant::now();
     let mut all_assembled_sequences =
         inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
+    let assembly_elapsed_time = assembly_start_time.elapsed();
 
     all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
 
     println!("\nAssembled sequences:");
+    println!("Time taken to assemble sequences: {:?}", assembly_elapsed_time);
 
     let mut output_file = std::fs::File::create(&args.output)?;
 
