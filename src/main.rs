@@ -188,39 +188,13 @@ fn main() -> Result<()> {
         bail!("k-mer length must be greater than 0");
     }
 
-    let (kmer_counts, elapsed_time) = find_and_count_kmers(&args.fastq, args.kmer_length)?;
+    let (kmer_table, elapsed_time) = find_and_count_kmers(&args.fastq, args.kmer_length)?;
 
-    let total_kmers: u64 = kmer_counts.values().map(|info| info.count).sum();
+    let total_kmers: u64 = kmer_table.values().map(|info| info.count).sum();
     println!("Total k-mers: {}", total_kmers);
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
-    let assembly_start_time = Instant::now();
-    let mut all_assembled_sequences =
-        inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
-    let assembly_elapsed_time = assembly_start_time.elapsed();
-
-    all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
-
-    println!("\nAssembled sequences:");
-    println!("Time taken to assemble sequences: {:?}", assembly_elapsed_time);
-
-    let mut output_file = std::fs::File::create(&args.output)?;
-
-    for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
-        writeln!(output_file, "@assembled_sequence_{} len={}", i + 1, assembled_sequence.len())?;
-
-        writeln!(
-            output_file,
-            "{}",
-            String::from_utf8_lossy(assembled_sequence)
-        )?;
-
-        writeln!(output_file, "+")?;
-
-        writeln!(output_file, "{}", "F".repeat(assembled_sequence.len()))?;
-    }
-
-    let mut sorted_kmers: Vec<_> = kmer_counts.into_iter().collect();
+    let mut sorted_kmers: Vec<_> = kmer_table.clone().into_iter().collect();
     sorted_kmers.sort_by(|a, b| b.1.count.cmp(&a.1.count));
 
     println!("\nTop {} k-mers:", args.top);
@@ -231,6 +205,32 @@ fn main() -> Result<()> {
             kmer_info.count,
             kmer_info.entropy
         );
+    }
+
+    let assembly_start_time = Instant::now();
+    let mut all_assembled_sequences =
+        inchworm_assemble_all_sequences(kmer_table.clone(), args.max_sequences);
+    let assembly_elapsed_time = assembly_start_time.elapsed();
+
+    all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
+
+    println!("\nAssembled sequences:");
+    println!("Time taken to assemble sequences: {:?}", assembly_elapsed_time);
+
+    let mut output_file = std::fs::File::create(&args.output)?;
+
+    for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
+        writeln!(output_file, "@assembled_sequence_{}", i + 1)?;
+
+        writeln!(
+            output_file,
+            "{}",
+            String::from_utf8_lossy(assembled_sequence)
+        )?;
+
+        writeln!(output_file, "+")?;
+
+        writeln!(output_file, "{}", "F".repeat(assembled_sequence.len()))?;
     }
 
     Ok(())
