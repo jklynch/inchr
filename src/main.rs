@@ -233,7 +233,7 @@ fn main() -> Result<()> {
 
     for (i, assembled_sequence) in all_assembled_sequences.iter().take(args.top).enumerate() {
         let first_kmer_bases = &assembled_sequence[..std::cmp::min(assembled_sequence.len(), args.kmer_length)];
-        println!("Sequence {}: Length = {}, First {} bases = {}", i + 1, assembled_sequence.len(), args.kmer_length, String::from_utf8_lossy(first_kmer_bases));
+        println!("Sequence {:<3}: Length = {:<5}, First {} bases = {}", i + 1, assembled_sequence.len(), args.kmer_length, String::from_utf8_lossy(first_kmer_bases));
 
         writeln!(output_file, "@assembled_sequence_{} len={}", i + 1, assembled_sequence.len())?;
 
