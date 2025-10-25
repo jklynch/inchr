@@ -202,6 +202,23 @@ fn main() -> Result<()> {
     println!("Total k-mers: {}", total_kmers);
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
+    let mut sorted_kmers: Vec<_> = kmer_counts.clone().into_iter().collect();
+    sorted_kmers.sort_by(|a, b| {
+        b.1.count.cmp(&a.1.count).then_with(|| {
+            b.1.entropy.partial_cmp(&a.1.entropy).unwrap_or(std::cmp::Ordering::Equal)
+        })
+    });
+
+    println!("\nTop {} k-mers:", args.top);
+    for (kmer, kmer_info) in sorted_kmers.iter().take(args.top) {
+        println!(
+            "{}\t{}\t{:.2}",
+            String::from_utf8_lossy(kmer),
+            kmer_info.count,
+            kmer_info.entropy
+        );
+    }
+
     let assembly_start_time = Instant::now();
     let mut all_assembled_sequences =
         inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
@@ -209,8 +226,7 @@ fn main() -> Result<()> {
 
     all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
 
-    println!("\nAssembled sequences:");
-    println!("Time taken to assemble sequences: {:?}", assembly_elapsed_time);
+    println!("\nTime taken to assemble sequences: {:?}", assembly_elapsed_time);
     println!("Number of assembled sequences: {}", all_assembled_sequences.len());
 
     let mut output_file = std::fs::File::create(&args.output)?;
@@ -227,19 +243,6 @@ fn main() -> Result<()> {
         writeln!(output_file, "+")?;
 
         writeln!(output_file, "{}", "F".repeat(assembled_sequence.len()))?;
-    }
-
-    let mut sorted_kmers: Vec<_> = kmer_counts.into_iter().collect();
-    sorted_kmers.sort_by(|a, b| b.1.count.cmp(&a.1.count));
-
-    println!("\nTop {} k-mers:", args.top);
-    for (kmer, kmer_info) in sorted_kmers.iter().take(args.top) {
-        println!(
-            "{}\t{}\t{:.2}",
-            String::from_utf8_lossy(kmer),
-            kmer_info.count,
-            kmer_info.entropy
-        );
     }
 
     Ok(())
