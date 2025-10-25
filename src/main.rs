@@ -211,6 +211,7 @@ fn main() -> Result<()> {
 
     println!("\nAssembled sequences:");
     println!("Time taken to assemble sequences: {:?}", assembly_elapsed_time);
+    println!("Number of assembled sequences: {}", all_assembled_sequences.len());
 
     let mut output_file = std::fs::File::create(&args.output)?;
 
