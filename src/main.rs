@@ -231,7 +231,7 @@ fn main() -> Result<()> {
 
     let mut output_file = std::fs::File::create(&args.output)?;
 
-    for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
+    for (i, assembled_sequence) in all_assembled_sequences.iter().take(args.top).enumerate() {
         let first_kmer_bases = &assembled_sequence[..std::cmp::min(assembled_sequence.len(), args.kmer_length)];
         println!("Sequence {}: Length = {}, First {} bases = {}", i + 1, assembled_sequence.len(), args.kmer_length, String::from_utf8_lossy(first_kmer_bases));
 
