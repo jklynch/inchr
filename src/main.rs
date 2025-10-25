@@ -23,6 +23,10 @@ struct Args {
     /// Output FASTQ file path
     #[arg(short, long)]
     output: String,
+
+    /// Maximum number of sequences to assemble
+    #[arg(long)]
+    max_sequences: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -186,7 +190,7 @@ fn main() -> Result<()> {
     println!("Total k-mers: {}", total_kmers);
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
-        let all_assembled_sequences = inchworm_assemble_all_sequences(kmer_counts.clone(), None);
+        let all_assembled_sequences = inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
 
     
 
