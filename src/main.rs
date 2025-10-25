@@ -155,10 +155,6 @@ fn inchworm_assemble_all_sequences(
                 break;
             }
         }
-        println!(
-            "DEBUG: kmer_table size at start of loop: {}",
-            kmer_table.len()
-        );
         // Select the k-mer with the highest count to be the seed
         let (seed, _) = match kmer_table
             .iter()
@@ -178,10 +174,6 @@ fn inchworm_assemble_all_sequences(
             println!("DEBUG: inchworm_assemble returned an empty sequence.");
             break;
         }
-        println!(
-            "DEBUG: Assembled sequence added: {}",
-            String::from_utf8_lossy(&assembled_sequence)
-        );
         all_assembled_sequences.push(assembled_sequence);
         assembled_count += 1;
     }
@@ -215,7 +207,7 @@ fn main() -> Result<()> {
     let mut output_file = std::fs::File::create(&args.output)?;
 
     for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
-        writeln!(output_file, "@assembled_sequence_{}", i + 1)?;
+        writeln!(output_file, "@assembled_sequence_{} len={}", i + 1, assembled_sequence.len())?;
 
         writeln!(
             output_file,
