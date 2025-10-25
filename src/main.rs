@@ -94,15 +94,19 @@ fn inchworm_assemble(
 
     // Right extension
     loop {
-        let mut best_candidate = None;
+        let mut best_candidate: Option<Vec<u8>> = None;
+        let mut max_count = 0;
 
         for nucleotide in [b'A', b'C', b'G', b'T'].iter() {
             let mut candidate = assembled_sequence.clone();
             candidate.push(*nucleotide);
             let right_most_kmer = &candidate[candidate.len() - kmer_length..];
 
-            if let Some(_kmer_info) = kmer_table.get(right_most_kmer) {
-                best_candidate = Some(candidate.clone());
+            if let Some(kmer_info) = kmer_table.get(right_most_kmer) {
+                if kmer_info.count > max_count {
+                    max_count = kmer_info.count;
+                    best_candidate = Some(candidate.clone());
+                }
             }
         }
 
@@ -117,15 +121,19 @@ fn inchworm_assemble(
 
     // Left extension
     loop {
-        let mut best_candidate = None;
+        let mut best_candidate: Option<Vec<u8>> = None;
+        let mut max_count = 0;
 
         for nucleotide in [b'A', b'C', b'G', b'T'].iter() {
             let mut candidate = vec![*nucleotide];
             candidate.extend_from_slice(&assembled_sequence);
             let left_most_kmer = &candidate[..kmer_length];
 
-            if let Some(_kmer_info) = kmer_table.get(left_most_kmer) {
-                best_candidate = Some(candidate.clone());
+            if let Some(kmer_info) = kmer_table.get(left_most_kmer) {
+                if kmer_info.count > max_count {
+                    max_count = kmer_info.count;
+                    best_candidate = Some(candidate.clone());
+                }
             }
         }
 
@@ -188,32 +196,15 @@ fn main() -> Result<()> {
         bail!("k-mer length must be greater than 0");
     }
 
-    let (kmer_table, elapsed_time) = find_and_count_kmers(&args.fastq, args.kmer_length)?;
+    let (kmer_counts, elapsed_time) = find_and_count_kmers(&args.fastq, args.kmer_length)?;
 
-    let total_kmers: u64 = kmer_table.values().map(|info| info.count).sum();
+    let total_kmers: u64 = kmer_counts.values().map(|info| info.count).sum();
     println!("Total k-mers: {}", total_kmers);
     println!("Time taken to count k-mers: {:?}", elapsed_time);
 
-    let mut sorted_kmers: Vec<_> = kmer_table.clone().into_iter().collect();
-    sorted_kmers.sort_by(|a, b| {
-        b.1.count.cmp(&a.1.count).then_with(|| {
-            b.1.entropy.partial_cmp(&a.1.entropy).unwrap_or(std::cmp::Ordering::Equal)
-        })
-    });
-
-    println!("\nTop {} k-mers:", args.top);
-    for (kmer, kmer_info) in sorted_kmers.iter().take(args.top) {
-        println!(
-            "{}\t{}\t{:.2}",
-            String::from_utf8_lossy(kmer),
-            kmer_info.count,
-            kmer_info.entropy
-        );
-    }
-
     let assembly_start_time = Instant::now();
     let mut all_assembled_sequences =
-        inchworm_assemble_all_sequences(kmer_table.clone(), args.max_sequences);
+        inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
     let assembly_elapsed_time = assembly_start_time.elapsed();
 
     all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
@@ -224,7 +215,7 @@ fn main() -> Result<()> {
     let mut output_file = std::fs::File::create(&args.output)?;
 
     for (i, assembled_sequence) in all_assembled_sequences.iter().enumerate() {
-        writeln!(output_file, "@assembled_sequence_{} len={}", i + 1, assembled_sequence.len())?;
+        writeln!(output_file, "@assembled_sequence_{}", i + 1)?;
 
         writeln!(
             output_file,
@@ -235,6 +226,19 @@ fn main() -> Result<()> {
         writeln!(output_file, "+")?;
 
         writeln!(output_file, "{}", "F".repeat(assembled_sequence.len()))?;
+    }
+
+    let mut sorted_kmers: Vec<_> = kmer_counts.into_iter().collect();
+    sorted_kmers.sort_by(|a, b| b.1.count.cmp(&a.1.count));
+
+    println!("\nTop {} k-mers:", args.top);
+    for (kmer, kmer_info) in sorted_kmers.iter().take(args.top) {
+        println!(
+            "{}\t{}\t{:.2}",
+            String::from_utf8_lossy(kmer),
+            kmer_info.count,
+            kmer_info.entropy
+        );
     }
 
     Ok(())
