@@ -40,16 +40,13 @@ fn find_and_count_kmers(
     kmer_length: usize,
 ) -> Result<(HashMap<Vec<u8>, KmerInfo>, Duration)> {
     let mut reader = parse_fastx_file(fastq_path)?;
-    let mut seqs = Vec::new();
-    while let Some(record) = reader.next() {
-        seqs.push(record?.seq().to_vec());
-    }
 
     let start_time = Instant::now();
 
     let mut kmer_counts: HashMap<Vec<u8>, KmerInfo> = HashMap::new();
 
-    for seq in seqs {
+    while let Some(record) = reader.next() {
+        let seq = record?.seq().to_vec();
         for kmer in seq.windows(kmer_length) {
             let entry = kmer_counts.entry(kmer.to_vec()).or_insert(KmerInfo {
                 count: 0,
