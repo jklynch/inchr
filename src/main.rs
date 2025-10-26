@@ -90,7 +90,7 @@ fn inchworm_assemble(
     // Right extension
     loop {
         let mut best_candidate: Option<Vec<u8>> = None;
-        let mut max_count = 0;
+        let mut best_candidate_count = 0;
 
         for nucleotide in [b'A', b'C', b'G', b'T'].iter() {
             let mut candidate = assembled_sequence.clone();
@@ -98,8 +98,8 @@ fn inchworm_assemble(
             let right_most_kmer = &candidate[candidate.len() - kmer_length..];
 
             if let Some(kmer_info) = kmer_table.get(right_most_kmer) {
-                if kmer_info.count > max_count {
-                    max_count = kmer_info.count;
+                if kmer_info.count > best_candidate_count {
+                    best_candidate_count = kmer_info.count;
                     best_candidate = Some(candidate.clone());
                 }
             }
@@ -117,7 +117,7 @@ fn inchworm_assemble(
     // Left extension
     loop {
         let mut best_candidate: Option<Vec<u8>> = None;
-        let mut max_count = 0;
+        let mut best_candidate_count = 0;
 
         for nucleotide in [b'A', b'C', b'G', b'T'].iter() {
             let mut candidate = vec![*nucleotide];
@@ -125,8 +125,8 @@ fn inchworm_assemble(
             let left_most_kmer = &candidate[..kmer_length];
 
             if let Some(kmer_info) = kmer_table.get(left_most_kmer) {
-                if kmer_info.count > max_count {
-                    max_count = kmer_info.count;
+                if kmer_info.count > best_candidate_count {
+                    best_candidate_count = kmer_info.count;
                     best_candidate = Some(candidate.clone());
                 }
             }
@@ -158,7 +158,6 @@ fn inchworm_assemble_all_sequences(
         {
             Some((kmer, info)) => (kmer.clone(), info.clone()),
             None => {
-                println!("DEBUG: No more k-mers to assemble with sufficient entropy.");
                 break; // No more k-mers to assemble with sufficient entropy
             }
         };
