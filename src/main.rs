@@ -276,18 +276,11 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
     use std::io::Cursor;
-    use std::io::Write;
-    use tempfile::NamedTempFile;
 
     #[test]
     fn test_find_and_count_kmers() {
-        let mut tmpfile = NamedTempFile::new().unwrap();
-        writeln!(tmpfile, "@seq1").unwrap();
-        writeln!(tmpfile, "ACGTACGT").unwrap();
-        writeln!(tmpfile, "+").unwrap();
-        writeln!(tmpfile, "FFFFFFFF").unwrap();
-        let fastq_content = std::fs::read_to_string(tmpfile.path()).unwrap();
-        let cursor = Cursor::new(fastq_content.as_bytes());
+        let fastq_content = b"@seq1\nACGTACGT\n+\nFFFFFFFF\n";
+        let cursor = Cursor::new(fastq_content);
 
         let (kmer_counts, _) = find_and_count_kmers(cursor, 4).unwrap();
 
