@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use clap::Parser;
-use needletail::parse_fastx_file;
+use needletail;
 use std::collections::HashMap;
 use std::io::Write;
 use std::time::{Duration, Instant};
@@ -35,11 +35,11 @@ pub struct KmerInfo {
     pub entropy: f64,
 }
 
-fn find_and_count_kmers(
-    fastq_path: &str,
+fn find_and_count_kmers<R: std::io::Read + std::marker::Send>(
+    reader: R,
     kmer_length: usize,
 ) -> Result<(HashMap<Vec<u8>, KmerInfo>, Duration)> {
-    let mut reader = parse_fastx_file(fastq_path)?;
+    let mut reader = needletail::parse_fastx_reader(reader)?;
 
     let start_time = Instant::now();
 
@@ -195,7 +195,8 @@ fn main() -> Result<()> {
         bail!("k-mer length must be greater than 0");
     }
 
-    let (kmer_counts, elapsed_time) = find_and_count_kmers(&args.fastq, args.kmer_length)?;
+    let fastq_file = std::fs::File::open(&args.fastq)?;
+    let (kmer_counts, elapsed_time) = find_and_count_kmers(fastq_file, args.kmer_length)?;
 
     let total_kmers: u64 = kmer_counts.values().map(|info| info.count).sum();
     println!("Total k-mers: {}", total_kmers);
@@ -274,6 +275,7 @@ fn main() -> Result<()> {
 mod tests {
     use super::*;
     use std::collections::HashMap;
+    use std::io::Cursor;
     use std::io::Write;
     use tempfile::NamedTempFile;
 
@@ -284,8 +286,10 @@ mod tests {
         writeln!(tmpfile, "ACGTACGT").unwrap();
         writeln!(tmpfile, "+").unwrap();
         writeln!(tmpfile, "FFFFFFFF").unwrap();
+        let fastq_content = std::fs::read_to_string(tmpfile.path()).unwrap();
+        let cursor = Cursor::new(fastq_content.as_bytes());
 
-        let (kmer_counts, _) = find_and_count_kmers(tmpfile.path().to_str().unwrap(), 4).unwrap();
+        let (kmer_counts, _) = find_and_count_kmers(cursor, 4).unwrap();
 
         let mut expected_counts = HashMap::new();
         expected_counts.insert(
