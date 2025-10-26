@@ -23,10 +23,6 @@ struct Args {
     /// Output FASTQ file path
     #[arg(short, long)]
     output: String,
-
-    /// Maximum number of sequences to assemble
-    #[arg(long)]
-    max_sequences: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -150,18 +146,10 @@ fn inchworm_assemble(
 
 fn inchworm_assemble_all_sequences(
     mut kmer_table: HashMap<Vec<u8>, KmerInfo>,
-    max_sequences: Option<usize>,
 ) -> Vec<Vec<u8>> {
     let mut all_assembled_sequences = Vec::new();
-    let mut assembled_count = 0;
 
     while !kmer_table.is_empty() {
-        if let Some(max) = max_sequences {
-            if assembled_count >= max {
-                println!("DEBUG: Reached max_sequences limit ({})\n", max);
-                break;
-            }
-        }
         // Select the k-mer with the highest count to be the seed
         let (seed, _) = match kmer_table
             .iter()
@@ -178,11 +166,9 @@ fn inchworm_assemble_all_sequences(
         let assembled_sequence = inchworm_assemble(&mut kmer_table, seed);
 
         if assembled_sequence.is_empty() {
-            println!("DEBUG: inchworm_assemble returned an empty sequence.");
             break;
         }
         all_assembled_sequences.push(assembled_sequence);
-        assembled_count += 1;
     }
 
     all_assembled_sequences
@@ -223,7 +209,7 @@ fn main() -> Result<()> {
 
     let assembly_start_time = Instant::now();
     let mut all_assembled_sequences =
-        inchworm_assemble_all_sequences(kmer_counts.clone(), args.max_sequences);
+        inchworm_assemble_all_sequences(kmer_counts.clone());
     let assembly_elapsed_time = assembly_start_time.elapsed();
 
     all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
@@ -399,7 +385,7 @@ mod tests {
             },
         );
 
-        let assembled_sequences = inchworm_assemble_all_sequences(kmer_counts, None);
+        let assembled_sequences = inchworm_assemble_all_sequences(kmer_counts);
         assert_eq!(assembled_sequences.len(), 1);
         assert!(assembled_sequences.contains(&b"TACGTAC".to_vec()));
     }
