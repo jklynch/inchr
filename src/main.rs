@@ -1,6 +1,7 @@
 use anyhow::{bail, Result};
 use clap::Parser;
 use needletail;
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::io::Write;
 use std::time::{Duration, Instant};
@@ -144,30 +145,53 @@ fn inchworm_assemble(
     assembled_sequence
 }
 
-fn inchworm_assemble_all_sequences(
-    mut kmer_table: HashMap<Vec<u8>, KmerInfo>,
-) -> Vec<Vec<u8>> {
+fn get_sorted_kmer_seeds(kmer_table: &HashMap<Vec<u8>, KmerInfo>) -> Vec<Vec<u8>> {
+    // Pair each key with its value reference to avoid repeated lookups in the comparator.
+    //let mut kmer_info_list: Vec<(&Vec<u8>, &KmerInfo)> = kmer_table.iter().collect();
+    // Collect and filter the map entries
+    let mut kmer_info_list: Vec<(&Vec<u8>, &KmerInfo)> = kmer_table
+        .iter()
+        .filter(|(_, kmer_info)| kmer_info.count > 0 && kmer_info.entropy >= 1.0)
+        .collect();
+
+    kmer_info_list.sort_by(|(kmer1, kmer_info1), (kmer2, kmer_info2)| {
+        // 1) count (descending)
+        match kmer_info1.count.cmp(&kmer_info2.count).reverse() {
+            Ordering::Equal => {
+                // 2) entropy (ascending). Use `total_cmp` for a total ordering on f64 (handles NaN consistently).
+                match kmer_info1.entropy.total_cmp(&kmer_info2.entropy) {
+                    Ordering::Equal => {
+                        // Optional 3) deterministic tiebreaker on the key bytes (lexicographic)
+                        kmer1.cmp(kmer2)
+                    }
+                    ord => ord,
+                }
+            }
+            ord => ord,
+        }
+    });
+
+    // Clone keys into the result (keys are Vec<u8>, so cloning is necessary).
+    kmer_info_list.into_iter().map(|(k, _)| k.clone()).collect()
+}
+
+fn inchworm_assemble_all_sequences(mut kmer_table: HashMap<Vec<u8>, KmerInfo>) -> Vec<Vec<u8>> {
     let mut all_assembled_sequences = Vec::new();
 
-    while !kmer_table.is_empty() {
-        // Select the k-mer with the highest count to be the seed
-        let (seed, _) = match kmer_table
-            .iter()
-            .filter(|&(_, kmer_info)| kmer_info.entropy >= 1.0)
-            .max_by_key(|&(_, kmer_info)| kmer_info.count)
-        {
-            Some((kmer, info)) => (kmer.clone(), info.clone()),
-            None => {
-                break; // No more k-mers to assemble with sufficient entropy
+    let kmers_in_seed_order = get_sorted_kmer_seeds(&kmer_table);
+
+    for seed in kmers_in_seed_order {
+        if kmer_table.contains_key(&seed) {
+            let assembled_sequence = inchworm_assemble(&mut kmer_table, seed);
+
+            if assembled_sequence.is_empty() {
+                // Stop when nothing is assembled
+                break;
             }
-        };
-
-        let assembled_sequence = inchworm_assemble(&mut kmer_table, seed);
-
-        if assembled_sequence.is_empty() {
-            break;
+            all_assembled_sequences.push(assembled_sequence);
+        } else {
+            // Try the next kmer
         }
-        all_assembled_sequences.push(assembled_sequence);
     }
 
     all_assembled_sequences
@@ -207,8 +231,7 @@ fn main() -> Result<()> {
     }
 
     let assembly_start_time = Instant::now();
-    let mut all_assembled_sequences =
-        inchworm_assemble_all_sequences(kmer_counts.clone());
+    let mut all_assembled_sequences = inchworm_assemble_all_sequences(kmer_counts.clone());
     let assembly_elapsed_time = assembly_start_time.elapsed();
 
     all_assembled_sequences.sort_by(|a, b| b.len().cmp(&a.len()));
@@ -300,6 +323,58 @@ mod tests {
         );
 
         assert_eq!(kmer_counts, expected_counts);
+    }
+
+    #[test]
+    fn test_sorted_keys_filters_and_sorts() {
+        let mut map = HashMap::new();
+
+        // Key order before sorting doesn't matter
+        map.insert(
+            vec![3],
+            KmerInfo {
+                count: 0,
+                entropy: 2.0,
+            },
+        ); // should be filtered (count == 0)
+        map.insert(
+            vec![2],
+            KmerInfo {
+                count: 5,
+                entropy: 0.5,
+            },
+        ); // should be filtered (entropy < 1.0)
+        map.insert(
+            vec![1],
+            KmerInfo {
+                count: 2,
+                entropy: 1.1,
+            },
+        ); // kept
+        map.insert(
+            vec![4],
+            KmerInfo {
+                count: 2,
+                entropy: 1.0,
+            },
+        ); // kept
+        map.insert(
+            vec![5],
+            KmerInfo {
+                count: 3,
+                entropy: 1.5,
+            },
+        ); // kept
+
+        let keys = get_sorted_kmer_seeds(&map);
+
+        // ✅ Only keys [1], [4], [5] should remain
+        let expected: Vec<Vec<u8>> = vec![vec![5], vec![4], vec![1]];
+        // Why this order?
+        // - [5] has count=3, so comes first
+        // - [4] and [1] both have count=2, entropy=1.0 vs 1.1 → [4] first
+
+        assert_eq!(keys, expected);
     }
 
     #[test]
